@@ -5,7 +5,6 @@ go 1.24.0
 require (
 	github.com/google/go-containerregistry v0.20.5
 	github.com/spf13/cobra v1.9.1
-	golang.org/x/term v0.27.0
 )
 
 require (

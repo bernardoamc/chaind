@@ -58,9 +58,4 @@ $CHAIND compare alpine:3.21 alpine:3.21 || echo "Exit code: $?"
 
 echo
 echo "=== JSON output ==="
-$CHAIND compare alpine:3.21 chaind-test:latest --json | python3 -m json.tool --no-ensure-ascii 2>/dev/null || \
-  $CHAIND compare alpine:3.21 chaind-test:latest --json
-
-echo
-echo "=== Quiet mode ==="
-$CHAIND compare alpine:3.21 chaind-test:latest --quiet
+$CHAIND compare alpine:3.21 chaind-test:latest | jq .

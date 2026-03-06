@@ -13,12 +13,7 @@ import (
 	"github.com/bernardoamc/chaind/internal/result"
 )
 
-var (
-	flagPlatform string
-	flagJSON     bool
-	flagNoColor  bool
-	flagQuiet    bool
-)
+var flagPlatform string
 
 var compareCmd = &cobra.Command{
 	Use:          "compare <image1> <image2>",
@@ -30,9 +25,6 @@ var compareCmd = &cobra.Command{
 
 func init() {
 	compareCmd.Flags().StringVar(&flagPlatform, "platform", "", "Target platform, e.g. linux/arm64/v8 (default: host platform)")
-	compareCmd.Flags().BoolVar(&flagJSON, "json", false, "JSON output")
-	compareCmd.Flags().BoolVar(&flagNoColor, "no-color", false, "Disable ANSI colors")
-	compareCmd.Flags().BoolVarP(&flagQuiet, "quiet", "q", false, "Only the verdict line and warnings")
 }
 
 func runCompare(cmd *cobra.Command, args []string) error {
@@ -70,12 +62,7 @@ func runCompare(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("compare images: %w", err)
 	}
 
-	var renderer output.Renderer
-	if flagJSON {
-		renderer = output.NewJSONRenderer(os.Stdout)
-	} else {
-		renderer = output.NewTextRenderer(os.Stdout, flagNoColor, flagQuiet)
-	}
+	renderer := output.NewJSONRenderer(os.Stdout)
 	if err := renderer.Render(res); err != nil {
 		return fmt.Errorf("render: %w", err)
 	}

@@ -48,10 +48,9 @@ chaind compare <image1> <image2> [flags]
 
 Flags:
   --platform string   Target platform, e.g. linux/arm64/v8 (default: host)
-  --json              Machine-readable JSON output
-  --no-color          Disable ANSI colors
-  -q, --quiet         Only the verdict line and warnings
 ```
+
+Output is JSON by default.
 
 Both images must be present in the local Docker daemon (`docker pull` them first).
 
@@ -62,40 +61,14 @@ Both images must be present in the local Docker daemon (`docker pull` them first
 chaind compare alpine:3.21 myapp:latest
 chaind compare myapp:latest alpine:3.21   # same result
 
-# JSON output
-chaind compare alpine:3.21 myapp:latest --json | jq .verdict
+# Pipe to jq
+chaind compare alpine:3.21 myapp:latest | jq .verdict
 
 # Different platform
 chaind compare --platform linux/arm64 alpine:3.21 myapp:latest
-
-# Quiet — just the verdict line
-chaind compare alpine:3.21 myapp:latest --quiet
 ```
 
-### Text output
-
-```
-CONFIRMED BASE  alpine:3.21 is a base image of myapp:latest
-
-  Platform      linux/amd64
-  Image A       alpine:3.21          sha256:a1b2c3d4...  (1 layers)
-  Image B       myapp:latest         sha256:e5f6a7b8...  (3 layers)
-
-  Layer comparison
-  ────────────────────────────────────────────────────────────────────
-   #   DiffID                          Status
-   0   sha256:001122334455...          matched
-   1   sha256:334455667788...          extra (B only)
-   2   sha256:667788990011...          extra (B only)
-  ────────────────────────────────────────────────────────────────────
-   Matched 1/1 layers from base. Derived image adds 2 layer(s).
-
-  Metadata evidence
-   base.name annotation:         (not set)
-   base.digest annotation:       (not set)
-```
-
-### JSON output
+### Output
 
 ```json
 {
