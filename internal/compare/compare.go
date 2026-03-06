@@ -1,137 +1,76 @@
 package compare
 
 import (
-	"fmt"
-
 	v1 "github.com/google/go-containerregistry/pkg/v1"
+
+	"github.com/bernardoamc/chaind/internal/image"
 	"github.com/bernardoamc/chaind/internal/result"
 )
 
-// Input pairs an image reference with its loaded image.
-type Input struct {
-	Ref string
-	Img v1.Image
-}
-
-type imageData struct {
-	ref       string
-	mediaType string
-	diffIDs   []v1.Hash
-	digest    v1.Hash
-	manifest  *v1.Manifest
-}
-
 // Compare checks whether either image is a base of the other.
 // Argument order does not matter: both directions are tried automatically.
-// In the result, ImageA is always the base and ImageB is always the derived image.
-func Compare(a, b Input, platform string) (*result.CompareResult, error) {
-	d1, err := loadImageData(a.Ref, a.Img)
-	if err != nil {
-		return nil, fmt.Errorf("loading first image: %w", err)
-	}
-	d2, err := loadImageData(b.Ref, b.Img)
-	if err != nil {
-		return nil, fmt.Errorf("loading second image: %w", err)
-	}
-
-	// Same image — symmetric, no need to check both directions.
-	if d1.digest == d2.digest {
-		res := &result.CompareResult{
-			Platform: platform,
-			Verdict:  result.VerdictSameImage,
-			ImageA:   buildImageMeta(d1),
-			ImageB:   buildImageMeta(d2),
+func Compare(a, b *image.Metadata, platform string) *result.CompareResult {
+	if a.Digest == b.Digest {
+		return &result.CompareResult{
+			Verdict:       result.VerdictSameImage,
+			Platform:      platform,
+			MatchedLayers: []result.LayerInfo{},
+			ExtraLayers:   []result.LayerInfo{},
+			Images:        buildImages(a, b),
 		}
-		return res, nil
 	}
 
-	// Try d1 → d2, then d2 → d1. base is always placed in ImageA.
-	if base, derived, ok := tryDirections(d1, d2); ok {
-		return buildConfirmedResult(base, derived, platform), nil
+	if base, derived, ok := tryDirections(a, b); ok {
+		return buildConfirmedResult(base, derived, platform)
 	}
 
-	// Neither direction matched.
-	res := &result.CompareResult{
-		Platform: platform,
-		Verdict:  result.VerdictNotBase,
-		ImageA:   buildImageMeta(d1),
-		ImageB:   buildImageMeta(d2),
+	return &result.CompareResult{
+		Verdict:       result.VerdictNotBase,
+		Platform:      platform,
+		MatchedLayers: []result.LayerInfo{},
+		ExtraLayers:   []result.LayerInfo{},
+		Images:        buildImages(a, b),
 	}
-	return res, nil
 }
 
 // tryDirections returns (base, derived, true) if one image's DiffIDs are a
 // strict prefix of the other's. Equal layer counts mean neither can be a base.
-func tryDirections(d1, d2 *imageData) (base, derived *imageData, ok bool) {
-	if len(d1.diffIDs) < len(d2.diffIDs) {
-		if isPrefixOf(d1.diffIDs, d2.diffIDs) {
-			return d1, d2, true
+func tryDirections(a, b *image.Metadata) (base, derived *image.Metadata, ok bool) {
+	if len(a.DiffIDs) < len(b.DiffIDs) {
+		if IsPrefixOf(a.DiffIDs, b.DiffIDs) {
+			return a, b, true
 		}
 		return nil, nil, false
 	}
-	if len(d2.diffIDs) < len(d1.diffIDs) {
-		if isPrefixOf(d2.diffIDs, d1.diffIDs) {
-			return d2, d1, true
+	if len(b.DiffIDs) < len(a.DiffIDs) {
+		if IsPrefixOf(b.DiffIDs, a.DiffIDs) {
+			return b, a, true
 		}
 	}
 	return nil, nil, false
 }
 
-func buildConfirmedResult(base, derived *imageData, platform string) *result.CompareResult {
-	res := &result.CompareResult{
-		Platform: platform,
-		Verdict:  result.VerdictConfirmedBase,
-		ImageA:   buildImageMeta(base),
-		ImageB:   buildImageMeta(derived),
-	}
-
-	res.MatchedLayers = buildLayers(derived, 0, len(base.diffIDs))
-	res.ExtraLayers = buildLayers(derived, len(base.diffIDs), len(derived.diffIDs))
-
-	return res
-}
-
-func loadImageData(ref string, img v1.Image) (*imageData, error) {
-	digest, err := img.Digest()
-	if err != nil {
-		return nil, fmt.Errorf("get digest: %w", err)
-	}
-
-	manifest, err := img.Manifest()
-	if err != nil {
-		return nil, fmt.Errorf("get manifest: %w", err)
-	}
-
-	config, err := img.ConfigFile()
-	if err != nil {
-		return nil, fmt.Errorf("get config file: %w", err)
-	}
-
-	mt, err := img.MediaType()
-	if err != nil {
-		return nil, fmt.Errorf("get media type: %w", err)
-	}
-
-	return &imageData{
-		ref:       ref,
-		mediaType: string(mt),
-		diffIDs:   config.RootFS.DiffIDs,
-		digest:    digest,
-		manifest:  manifest,
-	}, nil
-}
-
-func buildImageMeta(d *imageData) result.ImageMeta {
-	return result.ImageMeta{
-		Reference:  d.ref,
-		Digest:     d.digest.String(),
-		LayerCount: len(d.diffIDs),
-		MediaType:  d.mediaType,
+func buildConfirmedResult(base, derived *image.Metadata, platform string) *result.CompareResult {
+	return &result.CompareResult{
+		Verdict:       result.VerdictConfirmedBase,
+		Platform:      platform,
+		Base:          &base.Ref,
+		Derived:       &derived.Ref,
+		MatchedLayers: buildLayers(derived, 0, len(base.DiffIDs)),
+		ExtraLayers:   buildLayers(derived, len(base.DiffIDs), len(derived.DiffIDs)),
+		Images:        buildImages(base, derived),
 	}
 }
 
-// isPrefixOf returns true if a is a prefix of b (by DiffID).
-func isPrefixOf(a, b []v1.Hash) bool {
+func buildImages(a, b *image.Metadata) map[string]result.ImageMeta {
+	return map[string]result.ImageMeta{
+		a.Ref: {Digest: a.Digest.String(), LayerCount: len(a.DiffIDs), MediaType: a.MediaType},
+		b.Ref: {Digest: b.Digest.String(), LayerCount: len(b.DiffIDs), MediaType: b.MediaType},
+	}
+}
+
+// IsPrefixOf returns true if a is a prefix of b (by DiffID).
+func IsPrefixOf(a, b []v1.Hash) bool {
 	if len(a) > len(b) {
 		return false
 	}
@@ -143,21 +82,20 @@ func isPrefixOf(a, b []v1.Hash) bool {
 	return true
 }
 
-// buildLayers returns LayerInfo for img's layers in [start, end).
-func buildLayers(img *imageData, start, end int) []result.LayerInfo {
+// buildLayers returns LayerInfo for m's layers in [start, end).
+func buildLayers(m *image.Metadata, start, end int) []result.LayerInfo {
 	layers := make([]result.LayerInfo, 0, end-start)
 	for i := range end - start {
 		idx := start + i
 		var digest v1.Hash
-		if idx < len(img.manifest.Layers) {
-			digest = img.manifest.Layers[idx].Digest
+		if idx < len(m.Manifest.Layers) {
+			digest = m.Manifest.Layers[idx].Digest
 		}
 		layers = append(layers, result.LayerInfo{
 			Index:  idx,
 			Digest: digest,
-			DiffID: img.diffIDs[idx],
+			DiffID: m.DiffIDs[idx],
 		})
 	}
 	return layers
 }
-

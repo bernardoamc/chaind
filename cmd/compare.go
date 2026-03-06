@@ -28,10 +28,8 @@ func init() {
 }
 
 func runCompare(cmd *cobra.Command, args []string) error {
-	if flagSocket != "" {
-		if err := os.Setenv("DOCKER_HOST", "unix://"+flagSocket); err != nil {
-			return fmt.Errorf("set DOCKER_HOST: %w", err)
-		}
+	if err := applySocket(); err != nil {
+		return err
 	}
 
 	plat := platform.HostPlatform()
@@ -53,14 +51,17 @@ func runCompare(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("load image %s: %w", args[1], err)
 	}
 
-	res, err := compare.Compare(
-		compare.Input{Ref: args[0], Img: imgA},
-		compare.Input{Ref: args[1], Img: imgB},
-		platform.String(plat),
-	)
+	metaA, err := image.Extract(args[0], imgA)
 	if err != nil {
-		return fmt.Errorf("compare images: %w", err)
+		return fmt.Errorf("extract metadata %s: %w", args[0], err)
 	}
+
+	metaB, err := image.Extract(args[1], imgB)
+	if err != nil {
+		return fmt.Errorf("extract metadata %s: %w", args[1], err)
+	}
+
+	res := compare.Compare(metaA, metaB, platform.String(plat))
 
 	renderer := output.NewJSONRenderer(os.Stdout)
 	if err := renderer.Render(res); err != nil {

@@ -55,8 +55,8 @@ func (v *Verdict) UnmarshalJSON(data []byte) error {
 }
 
 // ImageMeta holds metadata about a single image.
+// Reference is omitted — it is the key in CompareResult.Images.
 type ImageMeta struct {
-	Reference  string `json:"reference"`
 	Digest     string `json:"digest"`
 	LayerCount int    `json:"layer_count"`
 	MediaType  string `json:"media_type"`
@@ -69,13 +69,36 @@ type LayerInfo struct {
 	DiffID v1.Hash `json:"diff_id"`
 }
 
+// GraphNode is a single image in a graph chain.
+type GraphNode struct {
+	Reference  string `json:"reference"`
+	Digest     string `json:"digest"`
+	LayerCount int    `json:"layer_count"`
+}
+
+// Chain is an ordered sequence of images where each is a base of the next.
+type Chain struct {
+	Nodes []GraphNode `json:"nodes"`
+}
+
+// GraphResult is the full result of a graph traversal across local images.
+type GraphResult struct {
+	Chains    []Chain     `json:"chains"`
+	Unrelated []GraphNode `json:"unrelated"`
+}
+
 // CompareResult is the full result of comparing two images.
+//
+// Images is always populated with the full metadata for both inputs, keyed by
+// reference. Base and Derived are non-null only for CONFIRMED_BASE, holding
+// the reference strings that identify which image plays each role.
 type CompareResult struct {
-	Verdict       Verdict     `json:"verdict"`
-	Platform      string      `json:"platform"`
-	ImageA        ImageMeta   `json:"image_a"`
-	ImageB        ImageMeta   `json:"image_b"`
-	MatchedLayers []LayerInfo `json:"matched_layers"`
-	ExtraLayers   []LayerInfo `json:"extra_layers"`
-	Warnings      []string    `json:"warnings,omitempty"`
+	Verdict       Verdict             `json:"verdict"`
+	Platform      string              `json:"platform"`
+	Base          *string             `json:"base"`
+	Derived       *string             `json:"derived"`
+	MatchedLayers []LayerInfo         `json:"matched_layers"`
+	ExtraLayers   []LayerInfo         `json:"extra_layers"`
+	Images        map[string]ImageMeta `json:"images"`
+	Warnings      []string            `json:"warnings,omitempty"`
 }

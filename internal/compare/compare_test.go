@@ -9,6 +9,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/types"
 
 	"github.com/bernardoamc/chaind/internal/compare"
+	"github.com/bernardoamc/chaind/internal/image"
 	"github.com/bernardoamc/chaind/internal/result"
 )
 
@@ -41,23 +42,29 @@ func appendLayer(t *testing.T, base v1.Image, layer v1.Layer) v1.Image {
 	return img
 }
 
+func extractOrFatal(t *testing.T, ref string, img v1.Image) *image.Metadata {
+	t.Helper()
+	m, err := image.Extract(ref, img)
+	if err != nil {
+		t.Fatalf("Extract(%q): %v", ref, err)
+	}
+	return m
+}
+
 func TestCompare_ConfirmedBase_SingleLayer(t *testing.T) {
 	base := randomImage(t, 1)
 	derived := appendLayer(t, base, randomLayer(t))
 
-	res, err := compare.Compare(compare.Input{Ref: "base:latest", Img: base}, compare.Input{Ref: "derived:latest", Img: derived}, testPlatform)
-	if err != nil {
-		t.Fatalf("Compare: %v", err)
-	}
+	res := compare.Compare(extractOrFatal(t, "base:latest", base), extractOrFatal(t, "derived:latest", derived), testPlatform)
 
 	if res.Verdict != result.VerdictConfirmedBase {
 		t.Errorf("verdict = %s, want CONFIRMED_BASE", res.Verdict)
 	}
-	if res.ImageA.Reference != "base:latest" {
-		t.Errorf("ImageA.Reference = %q, want %q", res.ImageA.Reference, "base:latest")
+	if res.Base == nil || *res.Base != "base:latest" {
+		t.Errorf("Base = %v, want %q", res.Base, "base:latest")
 	}
-	if res.ImageB.Reference != "derived:latest" {
-		t.Errorf("ImageB.Reference = %q, want %q", res.ImageB.Reference, "derived:latest")
+	if res.Derived == nil || *res.Derived != "derived:latest" {
+		t.Errorf("Derived = %v, want %q", res.Derived, "derived:latest")
 	}
 	if len(res.MatchedLayers) != 1 {
 		t.Errorf("matched layers = %d, want 1", len(res.MatchedLayers))
@@ -71,10 +78,7 @@ func TestCompare_ConfirmedBase_MultiLayer(t *testing.T) {
 	base := randomImage(t, 3)
 	derived := appendLayer(t, appendLayer(t, base, randomLayer(t)), randomLayer(t))
 
-	res, err := compare.Compare(compare.Input{Ref: "base:latest", Img: base}, compare.Input{Ref: "derived:latest", Img: derived}, testPlatform)
-	if err != nil {
-		t.Fatalf("Compare: %v", err)
-	}
+	res := compare.Compare(extractOrFatal(t, "base:latest", base), extractOrFatal(t, "derived:latest", derived), testPlatform)
 
 	if res.Verdict != result.VerdictConfirmedBase {
 		t.Errorf("verdict = %s, want CONFIRMED_BASE", res.Verdict)
@@ -92,17 +96,14 @@ func TestCompare_ConfirmedBase_ReversedArgs(t *testing.T) {
 	derived := appendLayer(t, base, randomLayer(t))
 
 	// Pass derived first — order should not matter.
-	res, err := compare.Compare(compare.Input{Ref: "derived:latest", Img: derived}, compare.Input{Ref: "base:latest", Img: base}, testPlatform)
-	if err != nil {
-		t.Fatalf("Compare: %v", err)
-	}
+	res := compare.Compare(extractOrFatal(t, "derived:latest", derived), extractOrFatal(t, "base:latest", base), testPlatform)
 
 	if res.Verdict != result.VerdictConfirmedBase {
 		t.Errorf("verdict = %s, want CONFIRMED_BASE", res.Verdict)
 	}
-	// ImageA must always be the base regardless of argument order.
-	if res.ImageA.Reference != "base:latest" {
-		t.Errorf("ImageA.Reference = %q, want %q (base should always be ImageA)", res.ImageA.Reference, "base:latest")
+	// Base must always be identified correctly regardless of argument order.
+	if res.Base == nil || *res.Base != "base:latest" {
+		t.Errorf("Base = %v, want %q", res.Base, "base:latest")
 	}
 	if len(res.MatchedLayers) != 2 {
 		t.Errorf("matched layers = %d, want 2", len(res.MatchedLayers))
@@ -113,10 +114,7 @@ func TestCompare_NotBase(t *testing.T) {
 	img1 := randomImage(t, 2)
 	img2 := randomImage(t, 3) // independent image, different layers
 
-	res, err := compare.Compare(compare.Input{Ref: "img1:latest", Img: img1}, compare.Input{Ref: "img2:latest", Img: img2}, testPlatform)
-	if err != nil {
-		t.Fatalf("Compare: %v", err)
-	}
+	res := compare.Compare(extractOrFatal(t, "img1:latest", img1), extractOrFatal(t, "img2:latest", img2), testPlatform)
 
 	if res.Verdict != result.VerdictNotBase {
 		t.Errorf("verdict = %s, want NOT_BASE", res.Verdict)
@@ -126,10 +124,7 @@ func TestCompare_NotBase(t *testing.T) {
 func TestCompare_SameImage(t *testing.T) {
 	img := randomImage(t, 2)
 
-	res, err := compare.Compare(compare.Input{Ref: "img:v1", Img: img}, compare.Input{Ref: "img:v1", Img: img}, testPlatform)
-	if err != nil {
-		t.Fatalf("Compare: %v", err)
-	}
+	res := compare.Compare(extractOrFatal(t, "img:v1", img), extractOrFatal(t, "img:v1", img), testPlatform)
 
 	if res.Verdict != result.VerdictSameImage {
 		t.Errorf("verdict = %s, want SAME_IMAGE", res.Verdict)
@@ -140,10 +135,7 @@ func TestCompare_Platform(t *testing.T) {
 	img1 := randomImage(t, 1)
 	img2 := randomImage(t, 1)
 
-	res, err := compare.Compare(compare.Input{Ref: "a:latest", Img: img1}, compare.Input{Ref: "b:latest", Img: img2}, "linux/arm64/v8")
-	if err != nil {
-		t.Fatalf("Compare: %v", err)
-	}
+	res := compare.Compare(extractOrFatal(t, "a:latest", img1), extractOrFatal(t, "b:latest", img2), "linux/arm64/v8")
 
 	if res.Platform != "linux/arm64/v8" {
 		t.Errorf("Platform = %q, want %q", res.Platform, "linux/arm64/v8")
@@ -154,10 +146,7 @@ func TestCompare_MatchedLayerIndices(t *testing.T) {
 	base := randomImage(t, 2)
 	derived := appendLayer(t, base, randomLayer(t))
 
-	res, err := compare.Compare(compare.Input{Ref: "base:latest", Img: base}, compare.Input{Ref: "derived:latest", Img: derived}, testPlatform)
-	if err != nil {
-		t.Fatalf("Compare: %v", err)
-	}
+	res := compare.Compare(extractOrFatal(t, "base:latest", base), extractOrFatal(t, "derived:latest", derived), testPlatform)
 
 	for i, l := range res.MatchedLayers {
 		if l.Index != i {

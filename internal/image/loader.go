@@ -1,14 +1,82 @@
 package image
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
+	dockerimage "github.com/docker/docker/api/types/image"
+	"github.com/docker/docker/client"
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/daemon"
 	"github.com/google/go-containerregistry/pkg/v1/types"
 )
+
+// ListRefs returns all tagged image references available in the local Docker daemon.
+// It reads DOCKER_HOST from the environment, falling back to the default socket.
+func ListRefs(ctx context.Context) ([]string, error) {
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		return nil, fmt.Errorf("create docker client: %w", err)
+	}
+	defer cli.Close()
+
+	imgs, err := cli.ImageList(ctx, dockerimage.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("list images: %w", err)
+	}
+
+	var refs []string
+	for _, img := range imgs {
+		for _, tag := range img.RepoTags {
+			if tag != "<none>:<none>" {
+				refs = append(refs, tag)
+			}
+		}
+	}
+	return refs, nil
+}
+
+// Metadata holds the extracted metadata from a loaded image.
+type Metadata struct {
+	Ref       string
+	Digest    v1.Hash
+	DiffIDs   []v1.Hash
+	MediaType string
+	Manifest  *v1.Manifest
+}
+
+// Extract pulls the relevant metadata out of a loaded v1.Image.
+func Extract(ref string, img v1.Image) (*Metadata, error) {
+	digest, err := img.Digest()
+	if err != nil {
+		return nil, fmt.Errorf("get digest: %w", err)
+	}
+
+	manifest, err := img.Manifest()
+	if err != nil {
+		return nil, fmt.Errorf("get manifest: %w", err)
+	}
+
+	config, err := img.ConfigFile()
+	if err != nil {
+		return nil, fmt.Errorf("get config file: %w", err)
+	}
+
+	mt, err := img.MediaType()
+	if err != nil {
+		return nil, fmt.Errorf("get media type: %w", err)
+	}
+
+	return &Metadata{
+		Ref:       ref,
+		Digest:    digest,
+		DiffIDs:   config.RootFS.DiffIDs,
+		MediaType: string(mt),
+		Manifest:  manifest,
+	}, nil
+}
 
 // Load loads a single-platform image from the Docker daemon.
 // If the image is a manifest list, it resolves the descriptor matching targetPlatform.

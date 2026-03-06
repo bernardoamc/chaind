@@ -25,6 +25,16 @@ func (e *verdictExitError) Error() string { return "" }
 func init() {
 	rootCmd.PersistentFlags().StringVar(&flagSocket, "socket", "", "Docker socket path (default: DOCKER_HOST or /var/run/docker.sock)")
 	rootCmd.AddCommand(compareCmd)
+	rootCmd.AddCommand(graphCmd)
+}
+
+func applySocket() error {
+	if flagSocket != "" {
+		if err := os.Setenv("DOCKER_HOST", "unix://"+flagSocket); err != nil {
+			return fmt.Errorf("set DOCKER_HOST: %w", err)
+		}
+	}
+	return nil
 }
 
 func Execute() {
