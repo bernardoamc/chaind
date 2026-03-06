@@ -34,14 +34,23 @@ Requires Go 1.23+ and a running Docker daemon.
 ## Usage
 
 ```
-chaind <image1> <image2> [flags]
+chaind [command]
+
+Commands:
+  compare   Determine the base image relationship between two images
+
+Global flags:
+  --socket string     Docker socket path (default: DOCKER_HOST or /var/run/docker.sock)
+```
+
+```
+chaind compare <image1> <image2> [flags]
 
 Flags:
   --platform string   Target platform, e.g. linux/arm64/v8 (default: host)
   --json              Machine-readable JSON output
   --no-color          Disable ANSI colors
   -q, --quiet         Only the verdict line and warnings
-  --socket string     Docker socket path (default: DOCKER_HOST or /var/run/docker.sock)
 ```
 
 Both images must be present in the local Docker daemon (`docker pull` them first).
@@ -50,17 +59,17 @@ Both images must be present in the local Docker daemon (`docker pull` them first
 
 ```bash
 # Is there a base relationship between these two images? (order doesn't matter)
-chaind alpine:3.21 myapp:latest
-chaind myapp:latest alpine:3.21   # same result
+chaind compare alpine:3.21 myapp:latest
+chaind compare myapp:latest alpine:3.21   # same result
 
 # JSON output
-chaind alpine:3.21 myapp:latest --json | jq .verdict
+chaind compare alpine:3.21 myapp:latest --json | jq .verdict
 
 # Different platform
-chaind --platform linux/arm64 alpine:3.21 myapp:latest
+chaind compare --platform linux/arm64 alpine:3.21 myapp:latest
 
 # Quiet — just the verdict line
-chaind alpine:3.21 myapp:latest --quiet
+chaind compare alpine:3.21 myapp:latest --quiet
 ```
 
 ### Text output
@@ -118,7 +127,7 @@ Exit codes make `chaind` suitable for use in CI pipelines and shell scripts.
 go test ./...
 
 # Integration tests (requires a running Docker daemon)
-./test.sh
+./integration_tests.sh
 ```
 
 ## Project structure

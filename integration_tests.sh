@@ -35,27 +35,32 @@ EOF
 
 echo
 echo "=== CONFIRMED_BASE (1 matched layer): alpine:3.21 → chaind-test:latest ==="
-$CHAIND alpine:3.21 chaind-test:latest
+$CHAIND compare alpine:3.21 chaind-test:latest
+echo "Exit code: $?"
+
+echo
+echo "=== CONFIRMED_BASE reversed args: chaind-test:latest alpine:3.21 ==="
+$CHAIND compare chaind-test:latest alpine:3.21
 echo "Exit code: $?"
 
 echo
 echo "=== CONFIRMED_BASE (3 matched layers): chaind-base:latest → chaind-derived:latest ==="
-$CHAIND chaind-base:latest chaind-derived:latest
+$CHAIND compare chaind-base:latest chaind-derived:latest
 echo "Exit code: $?"
 
 echo
 echo "=== NOT_BASE: alpine:3.20 → chaind-test:latest ==="
-$CHAIND alpine:3.20 chaind-test:latest || echo "Exit code: $?"
+$CHAIND compare alpine:3.20 chaind-test:latest || echo "Exit code: $?"
 
 echo
 echo "=== SAME_IMAGE: alpine:3.21 → alpine:3.21 ==="
-$CHAIND alpine:3.21 alpine:3.21 || echo "Exit code: $?"
+$CHAIND compare alpine:3.21 alpine:3.21 || echo "Exit code: $?"
 
 echo
 echo "=== JSON output ==="
-$CHAIND alpine:3.21 chaind-test:latest --json | python3 -m json.tool --no-ensure-ascii 2>/dev/null || \
-  $CHAIND alpine:3.21 chaind-test:latest --json
+$CHAIND compare alpine:3.21 chaind-test:latest --json | python3 -m json.tool --no-ensure-ascii 2>/dev/null || \
+  $CHAIND compare alpine:3.21 chaind-test:latest --json
 
 echo
 echo "=== Quiet mode ==="
-$CHAIND alpine:3.21 chaind-test:latest --quiet
+$CHAIND compare alpine:3.21 chaind-test:latest --quiet
