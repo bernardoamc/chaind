@@ -60,13 +60,19 @@ func Compare(a, b Input, platform string) (*result.CompareResult, error) {
 	return res, nil
 }
 
-// tryDirections tries d1→d2 then d2→d1. Returns (base, derived, true) on first match.
+// tryDirections returns (base, derived, true) if one image's DiffIDs are a
+// strict prefix of the other's. Equal layer counts mean neither can be a base.
 func tryDirections(d1, d2 *imageData) (base, derived *imageData, ok bool) {
-	if isPrefixOf(d1.diffIDs, d2.diffIDs) {
-		return d1, d2, true
+	if len(d1.diffIDs) < len(d2.diffIDs) {
+		if isPrefixOf(d1.diffIDs, d2.diffIDs) {
+			return d1, d2, true
+		}
+		return nil, nil, false
 	}
-	if isPrefixOf(d2.diffIDs, d1.diffIDs) {
-		return d2, d1, true
+	if len(d2.diffIDs) < len(d1.diffIDs) {
+		if isPrefixOf(d2.diffIDs, d1.diffIDs) {
+			return d2, d1, true
+		}
 	}
 	return nil, nil, false
 }
