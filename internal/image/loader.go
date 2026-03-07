@@ -6,23 +6,40 @@ import (
 	"fmt"
 
 	dockerimage "github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/client"
+	dockerclient "github.com/docker/docker/client"
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/daemon"
 	"github.com/google/go-containerregistry/pkg/v1/types"
 )
 
-// ListRefs returns all tagged image references available in the local Docker daemon.
-// It reads DOCKER_HOST from the environment, falling back to the default socket.
-func ListRefs(ctx context.Context) ([]string, error) {
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+// Client wraps the Docker daemon connection and exposes domain-level image
+// operations. All daemon calls share the same underlying connection, avoiding
+// per-call connection churn that can cause transient "No such image" errors
+// under Docker Desktop.
+type Client struct {
+	cli *dockerclient.Client
+	opt daemon.Option // pre-built WithClient option, reused for every Load call
+}
+
+// NewClient creates a Docker client configured from the environment.
+// The caller is responsible for calling Close when done.
+func NewClient() (*Client, error) {
+	cli, err := dockerclient.NewClientWithOpts(dockerclient.FromEnv, dockerclient.WithAPIVersionNegotiation())
 	if err != nil {
 		return nil, fmt.Errorf("create docker client: %w", err)
 	}
-	defer cli.Close()
+	return &Client{cli: cli, opt: daemon.WithClient(cli)}, nil
+}
 
-	imgs, err := cli.ImageList(ctx, dockerimage.ListOptions{})
+// Close releases the underlying Docker client connection.
+func (c *Client) Close() error {
+	return c.cli.Close()
+}
+
+// ListRefs returns all tagged image references available in the local Docker daemon.
+func (c *Client) ListRefs(ctx context.Context) ([]string, error) {
+	imgs, err := c.cli.ImageList(ctx, dockerimage.ListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("list images: %w", err)
 	}
@@ -36,6 +53,32 @@ func ListRefs(ctx context.Context) ([]string, error) {
 		}
 	}
 	return refs, nil
+}
+
+// Load loads a single-platform image from the Docker daemon.
+// If the image is a manifest list, it resolves the descriptor matching targetPlatform.
+func (c *Client) Load(ref string, targetPlatform *v1.Platform) (v1.Image, error) {
+	r, err := name.ParseReference(ref)
+	if err != nil {
+		return nil, fmt.Errorf("parse reference %q: %w", ref, err)
+	}
+
+	img, err := daemon.Image(r, c.opt)
+	if err != nil {
+		return nil, fmt.Errorf("load image %q from daemon: %w", ref, err)
+	}
+
+	mt, err := img.MediaType()
+	if err != nil {
+		return nil, fmt.Errorf("get media type for %q: %w", ref, err)
+	}
+
+	switch mt {
+	case types.OCIImageIndex, types.DockerManifestList:
+		return resolveIndex(r, img, targetPlatform, c.opt)
+	default:
+		return img, nil
+	}
 }
 
 // Metadata holds the extracted metadata from a loaded image.
@@ -78,35 +121,8 @@ func Extract(ref string, img v1.Image) (*Metadata, error) {
 	}, nil
 }
 
-// Load loads a single-platform image from the Docker daemon.
-// If the image is a manifest list, it resolves the descriptor matching targetPlatform.
-// The caller is responsible for setting DOCKER_HOST if a custom socket is needed.
-func Load(ref string, targetPlatform *v1.Platform) (v1.Image, error) {
-	r, err := name.ParseReference(ref)
-	if err != nil {
-		return nil, fmt.Errorf("parse reference %q: %w", ref, err)
-	}
-
-	img, err := daemon.Image(r)
-	if err != nil {
-		return nil, fmt.Errorf("load image %q from daemon: %w", ref, err)
-	}
-
-	mt, err := img.MediaType()
-	if err != nil {
-		return nil, fmt.Errorf("get media type for %q: %w", ref, err)
-	}
-
-	switch mt {
-	case types.OCIImageIndex, types.DockerManifestList:
-		return resolveIndex(r, img, targetPlatform)
-	default:
-		return img, nil
-	}
-}
-
 // resolveIndex resolves a manifest list to a single-platform image.
-func resolveIndex(r name.Reference, img v1.Image, targetPlatform *v1.Platform) (v1.Image, error) {
+func resolveIndex(r name.Reference, img v1.Image, targetPlatform *v1.Platform, opt daemon.Option) (v1.Image, error) {
 	raw, err := img.RawManifest()
 	if err != nil {
 		return nil, fmt.Errorf("get raw manifest: %w", err)
@@ -126,7 +142,7 @@ func resolveIndex(r name.Reference, img v1.Image, targetPlatform *v1.Platform) (
 		if err != nil {
 			return nil, fmt.Errorf("build digest ref: %w", err)
 		}
-		return daemon.Image(digestRef)
+		return daemon.Image(digestRef, opt)
 	}
 
 	plat := targetPlatform.OS + "/" + targetPlatform.Architecture

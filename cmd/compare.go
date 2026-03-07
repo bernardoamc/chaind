@@ -41,12 +41,18 @@ func runCompare(cmd *cobra.Command, args []string) error {
 		plat = p
 	}
 
-	imgA, err := image.Load(args[0], plat)
+	cli, err := image.NewClient()
+	if err != nil {
+		return fmt.Errorf("create docker client: %w", err)
+	}
+	defer cli.Close()
+
+	imgA, err := cli.Load(args[0], plat)
 	if err != nil {
 		return fmt.Errorf("load image %s: %w", args[0], err)
 	}
 
-	imgB, err := image.Load(args[1], plat)
+	imgB, err := cli.Load(args[1], plat)
 	if err != nil {
 		return fmt.Errorf("load image %s: %w", args[1], err)
 	}

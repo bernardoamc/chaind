@@ -25,12 +25,18 @@ func runGraph(cmd *cobra.Command, args []string) error {
 
 	ctx := cmd.Context()
 
-	refs, err := image.ListRefs(ctx)
+	cli, err := image.NewClient()
+	if err != nil {
+		return fmt.Errorf("create docker client: %w", err)
+	}
+	defer cli.Close()
+
+	refs, err := cli.ListRefs(ctx)
 	if err != nil {
 		return fmt.Errorf("list images: %w", err)
 	}
 
-	res, err := graph.Build(ctx, refs)
+	res, err := graph.Build(ctx, refs, cli)
 	if err != nil {
 		return fmt.Errorf("build graph: %w", err)
 	}

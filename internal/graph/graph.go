@@ -20,8 +20,8 @@ import (
 
 // Build loads all referenced images using the host platform, then finds and
 // returns all base image relationships among them.
-func Build(ctx context.Context, refs []string) (*result.GraphResult, error) {
-	entries, err := loadEntries(ctx, refs)
+func Build(ctx context.Context, refs []string, cli *image.Client) (*result.GraphResult, error) {
+	entries, err := loadEntries(ctx, refs, cli)
 	if err != nil {
 		return nil, err
 	}
@@ -34,7 +34,7 @@ func Build(ctx context.Context, refs []string) (*result.GraphResult, error) {
 	return buildGraph(entries), nil
 }
 
-func loadEntries(ctx context.Context, refs []string) ([]*image.Metadata, error) {
+func loadEntries(ctx context.Context, refs []string, cli *image.Client) ([]*image.Metadata, error) {
 	plat := platform.HostPlatform()
 
 	var mu sync.Mutex
@@ -45,7 +45,7 @@ func loadEntries(ctx context.Context, refs []string) ([]*image.Metadata, error) 
 
 	for _, ref := range refs {
 		g.Go(func() error {
-			img, err := image.Load(ref, plat)
+			img, err := cli.Load(ref, plat)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "warning: skipping %s: %v\n", ref, err)
 				return nil
