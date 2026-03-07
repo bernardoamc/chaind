@@ -150,8 +150,9 @@ func buildGraph(entries []*image.Metadata) *result.GraphResult {
 	}
 
 	return &result.GraphResult{
-		Chains:    chains,
-		Unrelated: unrelated,
+		SchemaVersion: result.SchemaVersion,
+		Chains:        chains,
+		Unrelated:     unrelated,
 	}
 }
 

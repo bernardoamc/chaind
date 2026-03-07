@@ -12,6 +12,7 @@ import (
 func Compare(a, b *image.Metadata, platform string) *result.CompareResult {
 	if a.Digest == b.Digest {
 		return &result.CompareResult{
+			SchemaVersion: result.SchemaVersion,
 			Verdict:       result.VerdictSameImage,
 			Platform:      platform,
 			MatchedLayers: []result.LayerInfo{},
@@ -26,6 +27,7 @@ func Compare(a, b *image.Metadata, platform string) *result.CompareResult {
 	}
 
 	return &result.CompareResult{
+		SchemaVersion: result.SchemaVersion,
 		Verdict:       result.VerdictNotBase,
 		Platform:      platform,
 		MatchedLayers: []result.LayerInfo{},
@@ -54,6 +56,7 @@ func tryDirections(a, b *image.Metadata) (base, derived *image.Metadata, ok bool
 
 func buildConfirmedResult(base, derived *image.Metadata, platform string) *result.CompareResult {
 	return &result.CompareResult{
+		SchemaVersion: result.SchemaVersion,
 		Verdict:       result.VerdictConfirmedBase,
 		Platform:      platform,
 		Base:          &base.Ref,

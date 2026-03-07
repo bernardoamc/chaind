@@ -7,6 +7,10 @@ import (
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 )
 
+// SchemaVersion is the current output schema version.
+// Increment on any breaking change to field names, types, or semantics.
+const SchemaVersion = 1
+
 // Verdict represents the result of a base image comparison.
 type Verdict int
 
@@ -83,9 +87,10 @@ type Chain struct {
 
 // GraphResult is the full result of a graph traversal across local images.
 type GraphResult struct {
-	Chains    []Chain     `json:"chains"`
-	Unrelated []GraphNode `json:"unrelated"`
-	Warnings  []string    `json:"warnings"`
+	SchemaVersion int         `json:"schema_version"`
+	Chains        []Chain     `json:"chains"`
+	Unrelated     []GraphNode `json:"unrelated"`
+	Warnings      []string    `json:"warnings"`
 }
 
 // CompareResult is the full result of comparing two images.
@@ -94,6 +99,7 @@ type GraphResult struct {
 // reference. Base and Derived are non-null only for CONFIRMED_BASE, holding
 // the reference strings that identify which image plays each role.
 type CompareResult struct {
+	SchemaVersion int                  `json:"schema_version"`
 	Verdict       Verdict              `json:"verdict"`
 	Platform      string               `json:"platform"`
 	Base          *string              `json:"base"`

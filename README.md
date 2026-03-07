@@ -76,6 +76,7 @@ Output (`CONFIRMED_BASE`):
 
 ```json
 {
+  "schema_version": 1,
   "verdict": "CONFIRMED_BASE",
   "platform": "linux/amd64",
   "base": "alpine:3.21",
@@ -94,6 +95,7 @@ Output (`NOT_BASE` / `SAME_IMAGE`):
 
 ```json
 {
+  "schema_version": 1,
   "verdict": "NOT_BASE",
   "platform": "linux/amd64",
   "base": null,
@@ -119,6 +121,7 @@ Output:
 
 ```json
 {
+  "schema_version": 1,
   "chains": [
     {
       "nodes": [
