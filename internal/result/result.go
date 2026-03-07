@@ -55,7 +55,7 @@ func (v *Verdict) UnmarshalJSON(data []byte) error {
 }
 
 // ImageMeta holds metadata about a single image.
-// Reference is omitted — it is the key in CompareResult.Images.
+// Reference is omitted since it is the key in CompareResult.Images.
 type ImageMeta struct {
 	Digest     string `json:"digest"`
 	LayerCount int    `json:"layer_count"`
@@ -85,6 +85,7 @@ type Chain struct {
 type GraphResult struct {
 	Chains    []Chain     `json:"chains"`
 	Unrelated []GraphNode `json:"unrelated"`
+	Warnings  []string    `json:"warnings"`
 }
 
 // CompareResult is the full result of comparing two images.
@@ -93,12 +94,12 @@ type GraphResult struct {
 // reference. Base and Derived are non-null only for CONFIRMED_BASE, holding
 // the reference strings that identify which image plays each role.
 type CompareResult struct {
-	Verdict       Verdict             `json:"verdict"`
-	Platform      string              `json:"platform"`
-	Base          *string             `json:"base"`
-	Derived       *string             `json:"derived"`
-	MatchedLayers []LayerInfo         `json:"matched_layers"`
-	ExtraLayers   []LayerInfo         `json:"extra_layers"`
+	Verdict       Verdict              `json:"verdict"`
+	Platform      string               `json:"platform"`
+	Base          *string              `json:"base"`
+	Derived       *string              `json:"derived"`
+	MatchedLayers []LayerInfo          `json:"matched_layers"`
+	ExtraLayers   []LayerInfo          `json:"extra_layers"`
 	Images        map[string]ImageMeta `json:"images"`
-	Warnings      []string            `json:"warnings,omitempty"`
+	Warnings      []string             `json:"warnings"`
 }

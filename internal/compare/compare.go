@@ -17,6 +17,7 @@ func Compare(a, b *image.Metadata, platform string) *result.CompareResult {
 			MatchedLayers: []result.LayerInfo{},
 			ExtraLayers:   []result.LayerInfo{},
 			Images:        buildImages(a, b),
+			Warnings:      []string{},
 		}
 	}
 
@@ -30,6 +31,7 @@ func Compare(a, b *image.Metadata, platform string) *result.CompareResult {
 		MatchedLayers: []result.LayerInfo{},
 		ExtraLayers:   []result.LayerInfo{},
 		Images:        buildImages(a, b),
+		Warnings:      []string{},
 	}
 }
 
@@ -59,6 +61,7 @@ func buildConfirmedResult(base, derived *image.Metadata, platform string) *resul
 		MatchedLayers: buildLayers(derived, 0, len(base.DiffIDs)),
 		ExtraLayers:   buildLayers(derived, len(base.DiffIDs), len(derived.DiffIDs)),
 		Images:        buildImages(base, derived),
+		Warnings:      []string{},
 	}
 }
 

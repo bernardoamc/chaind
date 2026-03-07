@@ -28,19 +28,19 @@ func TestPlatformSatisfies(t *testing.T) {
 			want:      true,
 		},
 		{
-			name:      "target has no variant, candidate does — still matches",
+			name:      "target has no variant, candidate does, still matches",
 			candidate: &v1.Platform{OS: "linux", Architecture: "arm64", Variant: "v8"},
 			target:    &v1.Platform{OS: "linux", Architecture: "arm64"},
 			want:      true,
 		},
 		{
-			name:      "target requires variant, candidate has none — no match",
+			name:      "target requires variant, candidate has none, no match",
 			candidate: &v1.Platform{OS: "linux", Architecture: "arm64"},
 			target:    &v1.Platform{OS: "linux", Architecture: "arm64", Variant: "v8"},
 			want:      false,
 		},
 		{
-			name:      "target requires variant, candidate has different variant — no match",
+			name:      "target requires variant, candidate has different variant, no match",
 			candidate: &v1.Platform{OS: "linux", Architecture: "arm", Variant: "v6"},
 			target:    &v1.Platform{OS: "linux", Architecture: "arm", Variant: "v7"},
 			want:      false,

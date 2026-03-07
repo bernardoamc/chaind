@@ -110,7 +110,7 @@ Layer 2: application code (COPY . /app)
 Final filesystem seen by the container
 ```
 
-Each `RUN`, `COPY`, or `ADD` instruction in a Dockerfile typically produces one layer. `FROM` itself does not add a new layer — it inherits all layers from the parent image.
+Each `RUN`, `COPY`, or `ADD` instruction in a Dockerfile typically produces one layer. `FROM` itself does not add a new layer, it inherits all layers from the parent image.
 
 ---
 

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -44,7 +45,11 @@ func Execute() {
 		if errors.As(err, &ve) {
 			os.Exit(ve.code)
 		}
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		data, _ := json.Marshal(struct {
+			Error string `json:"error"`
+			Code  int    `json:"code"`
+		}{err.Error(), 10})
+		fmt.Fprintf(os.Stderr, "%s\n", data)
 		os.Exit(10)
 	}
 }

@@ -95,7 +95,6 @@ func TestCompare_ConfirmedBase_ReversedArgs(t *testing.T) {
 	base := randomImage(t, 2)
 	derived := appendLayer(t, base, randomLayer(t))
 
-	// Pass derived first — order should not matter.
 	res := compare.Compare(extractOrFatal(t, "derived:latest", derived), extractOrFatal(t, "base:latest", base), testPlatform)
 
 	if res.Verdict != result.VerdictConfirmedBase {

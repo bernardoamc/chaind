@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"context"
 	"fmt"
-	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -21,7 +20,7 @@ import (
 // Build loads all referenced images using the host platform, then finds and
 // returns all base image relationships among them.
 func Build(ctx context.Context, refs []string, cli *image.Client) (*result.GraphResult, error) {
-	entries, err := loadEntries(ctx, refs, cli)
+	entries, warnings, err := loadEntries(ctx, refs, cli)
 	if err != nil {
 		return nil, err
 	}
@@ -31,14 +30,17 @@ func Build(ctx context.Context, refs []string, cli *image.Client) (*result.Graph
 		return cmp.Compare(len(a.DiffIDs), len(b.DiffIDs))
 	})
 
-	return buildGraph(entries), nil
+	res := buildGraph(entries)
+	res.Warnings = warnings
+	return res, nil
 }
 
-func loadEntries(ctx context.Context, refs []string, cli *image.Client) ([]*image.Metadata, error) {
+func loadEntries(ctx context.Context, refs []string, cli *image.Client) ([]*image.Metadata, []string, error) {
 	plat := platform.HostPlatform()
 
 	var mu sync.Mutex
 	var entries []*image.Metadata
+	var failed []string
 
 	var g errgroup.Group
 	g.SetLimit(8)
@@ -47,13 +49,17 @@ func loadEntries(ctx context.Context, refs []string, cli *image.Client) ([]*imag
 		g.Go(func() error {
 			img, err := cli.Load(ref, plat)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "warning: skipping %s: %v\n", ref, err)
+				mu.Lock()
+				failed = append(failed, ref)
+				mu.Unlock()
 				return nil
 			}
 
 			m, err := image.Extract(ref, img)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "warning: skipping %s: %v\n", ref, err)
+				mu.Lock()
+				failed = append(failed, ref)
+				mu.Unlock()
 				return nil
 			}
 
@@ -65,10 +71,28 @@ func loadEntries(ctx context.Context, refs []string, cli *image.Client) ([]*imag
 	}
 
 	if err := g.Wait(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return entries, nil
+	// Retry failed refs sequentially. Docker Desktop can transiently reject
+	// concurrent ImageSave streams; by the time the first wave finishes the
+	// daemon has settled and individual retries almost always succeed.
+	warnings := []string{}
+	for _, ref := range failed {
+		img, err := cli.Load(ref, plat)
+		if err != nil {
+			warnings = append(warnings, fmt.Sprintf("skipping %s: %v", ref, err))
+			continue
+		}
+		m, err := image.Extract(ref, img)
+		if err != nil {
+			warnings = append(warnings, fmt.Sprintf("skipping %s: %v", ref, err))
+			continue
+		}
+		entries = append(entries, m)
+	}
+
+	return entries, warnings, nil
 }
 
 func buildGraph(entries []*image.Metadata) *result.GraphResult {

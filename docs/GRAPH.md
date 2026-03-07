@@ -99,7 +99,7 @@ and require a separate pass to remove transitive edges.
 | Step | Complexity |
 |---|---|
 | Build fingerprint map | O(n × L) |
-| Find direct parents | O(n × L) — at most L map lookups per image |
+| Find direct parents | O(n × L) at most L map lookups per image |
 | DFS chain traversal | O(n) |
 | **Total** | **O(n × L)** |
 

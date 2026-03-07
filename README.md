@@ -136,9 +136,14 @@ Output:
   ],
   "unrelated": [
     { "reference": "postgres:16", "digest": "sha256:...", "layer_count": 8 }
+  ],
+  "warnings": [
+    "skipping scratch:latest: get media type: unsupported media type"
   ]
 }
 ```
+
+The `warnings` field is always present (empty array when there are none). Each entry describes an image that was skipped during loading (e.g. unsupported media type, missing platform) and therefore excluded from the graph.
 
 When a base image has multiple derived images, each derivation appears as a separate chain with the shared root repeated. Images with no detected relationship to any other local image appear in `unrelated`.
 
@@ -152,6 +157,16 @@ When a base image has multiple derived images, each derivation appears as a sepa
 | 10   | Fatal error |
 
 Exit codes make `chaind compare` suitable for use in CI pipelines and shell scripts.
+
+## Error output
+
+Fatal errors (daemon unreachable, image not found, bad arguments) are emitted as JSON to stderr so both channels are machine-readable:
+
+```json
+{ "error": "load image foo:latest from daemon: not found", "code": 10 }
+```
+
+On success, stdout always carries the result JSON. On failure, stderr carries the error JSON and the process exits with code 10.
 
 ## Testing
 
@@ -189,7 +204,7 @@ chaind/
 
 ## Dependencies
 
-- [`github.com/google/go-containerregistry`](https://github.com/google/go-containerregistry) — image loading from Docker daemon, OCI types
-- [`github.com/docker/docker`](https://github.com/moby/moby) — listing local images via Docker client
-- [`github.com/spf13/cobra`](https://github.com/spf13/cobra) — CLI framework
-- [`golang.org/x/sync`](https://pkg.go.dev/golang.org/x/sync) — concurrent image loading in `graph`
+- [`github.com/google/go-containerregistry`](https://github.com/google/go-containerregistry) image loading from Docker daemon, OCI types
+- [`github.com/docker/docker`](https://github.com/moby/moby)  listing local images via Docker client
+- [`github.com/spf13/cobra`](https://github.com/spf13/cobra)  CLI framework
+- [`golang.org/x/sync`](https://pkg.go.dev/golang.org/x/sync) concurrent image loading in `graph`
