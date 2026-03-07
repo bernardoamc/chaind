@@ -125,15 +125,15 @@ Output:
   "chains": [
     {
       "nodes": [
-        { "reference": "alpine:3.21", "digest": "sha256:...", "layer_count": 1 },
-        { "reference": "myapp:latest", "digest": "sha256:...", "layer_count": 3 }
+        { "reference": "alpine:3.21", "digest": "sha256:...", "layer_count": 1, "parent": null },
+        { "reference": "myapp:latest", "digest": "sha256:...", "layer_count": 3, "parent": "alpine:3.21" }
       ]
     },
     {
       "nodes": [
-        { "reference": "alpine:3.21",  "digest": "sha256:...", "layer_count": 1 },
-        { "reference": "base:latest",  "digest": "sha256:...", "layer_count": 3 },
-        { "reference": "derived:latest", "digest": "sha256:...", "layer_count": 4 }
+        { "reference": "alpine:3.21",    "digest": "sha256:...", "layer_count": 1, "parent": null },
+        { "reference": "base:latest",    "digest": "sha256:...", "layer_count": 3, "parent": "alpine:3.21" },
+        { "reference": "derived:latest", "digest": "sha256:...", "layer_count": 4, "parent": "base:latest" }
       ]
     }
   ],

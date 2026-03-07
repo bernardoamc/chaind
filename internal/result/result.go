@@ -75,9 +75,10 @@ type LayerInfo struct {
 
 // GraphNode is a single image in a graph chain.
 type GraphNode struct {
-	Reference  string `json:"reference"`
-	Digest     string `json:"digest"`
-	LayerCount int    `json:"layer_count"`
+	Reference       string  `json:"reference"`
+	Digest          string  `json:"digest"`
+	LayerCount      int     `json:"layer_count"`
+	ParentReference *string `json:"parent"`
 }
 
 // Chain is an ordered sequence of images where each is a base of the next.

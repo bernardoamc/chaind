@@ -145,7 +145,7 @@ func buildGraph(entries []*image.Metadata) *result.GraphResult {
 	unrelated := []result.GraphNode{}
 	for i, m := range entries {
 		if !inChain[i] {
-			unrelated = append(unrelated, toNode(m))
+			unrelated = append(unrelated, toNode(m, nil))
 		}
 	}
 
@@ -183,7 +183,12 @@ func dfs(path []int, entries []*image.Metadata, directChildren [][]int, inChain 
 
 		nodes := make([]result.GraphNode, len(path))
 		for k, idx := range path {
-			nodes[k] = toNode(entries[idx])
+			var parentRef *string
+			if k > 0 {
+				ref := entries[path[k-1]].Ref
+				parentRef = &ref
+			}
+			nodes[k] = toNode(entries[idx], parentRef)
 			inChain[idx] = true
 		}
 
@@ -212,10 +217,11 @@ func diffIDKey(ids []v1.Hash) string {
 	return b.String()
 }
 
-func toNode(m *image.Metadata) result.GraphNode {
+func toNode(m *image.Metadata, parentRef *string) result.GraphNode {
 	return result.GraphNode{
-		Reference:  m.Ref,
-		Digest:     m.Digest.String(),
-		LayerCount: len(m.DiffIDs),
+		Reference:       m.Ref,
+		Digest:          m.Digest.String(),
+		LayerCount:      len(m.DiffIDs),
+		ParentReference: parentRef,
 	}
 }
