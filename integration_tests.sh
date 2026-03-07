@@ -92,3 +92,19 @@ assert "GRAPH: chaind-test:latest is a chain leaf" "$graph" '[.chains[].nodes[-1
 assert "GRAPH: chaind-derived:latest is a chain leaf" "$graph" '[.chains[].nodes[-1].reference] | any(. == "chaind-derived:latest")'
 assert "GRAPH: alpine:3.20 is unrelated" "$graph" '[.unrelated[].reference] | any(. == "alpine:3.20")'
 assert "GRAPH: alpine:3.21 is not unrelated" "$graph" '[.unrelated[].reference] | any(. == "alpine:3.21") | not'
+
+echo
+
+ancestors=$($CHAIND ancestors)
+# chaind-base:latest and chaind-derived:latest share 3 layers and form a tight group
+# at depth 3. chaind-test:latest shares only the alpine base layer (depth 1) with them,
+# so it belongs to their broader family group but not to the depth-3 group.
+# alpine:3.21 has only 1 layer so it is excluded from grouping and appears in ungrouped.
+assert "ANCESTORS: chaind-base and chaind-derived share a tight group at depth 3" "$ancestors" \
+  '[.groups[] | select(.common_depth == 3 and (.images | (contains(["chaind-base:latest"]) and contains(["chaind-derived:latest"]))))] | length >= 1'
+assert "ANCESTORS: chaind-test:latest is not in the tight group" "$ancestors" \
+  '[.groups[] | select(.common_depth == 3 and (.images | (contains(["chaind-base:latest"]) and contains(["chaind-derived:latest"]))))] | .[0].images | contains(["chaind-test:latest"]) | not'
+assert "ANCESTORS: chaind-test:latest shares the broader family group with chaind-base and chaind-derived" "$ancestors" \
+  '[.groups[] | select(.images | (contains(["chaind-test:latest"]) and contains(["chaind-base:latest"]) and contains(["chaind-derived:latest"])))] | length >= 1'
+assert "ANCESTORS: alpine:3.21 is ungrouped (single-layer base image)" "$ancestors" \
+  '[.ungrouped[] | select(. == "alpine:3.21")] | length == 1'

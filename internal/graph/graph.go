@@ -3,15 +3,10 @@ package graph
 import (
 	"cmp"
 	"context"
-	"fmt"
 	"slices"
 	"strings"
-	"sync"
-
-	"golang.org/x/sync/errgroup"
 
 	"github.com/bernardoamc/chaind/internal/image"
-	"github.com/bernardoamc/chaind/internal/platform"
 	"github.com/bernardoamc/chaind/internal/result"
 
 	v1 "github.com/google/go-containerregistry/pkg/v1"
@@ -20,7 +15,7 @@ import (
 // Build loads all referenced images using the host platform, then finds and
 // returns all base image relationships among them.
 func Build(ctx context.Context, refs []string, cli *image.Client) (*result.GraphResult, error) {
-	entries, warnings, err := loadEntries(ctx, refs, cli)
+	entries, warnings, err := cli.LoadAll(ctx, refs)
 	if err != nil {
 		return nil, err
 	}
@@ -33,66 +28,6 @@ func Build(ctx context.Context, refs []string, cli *image.Client) (*result.Graph
 	res := buildGraph(entries)
 	res.Warnings = warnings
 	return res, nil
-}
-
-func loadEntries(ctx context.Context, refs []string, cli *image.Client) ([]*image.Metadata, []string, error) {
-	plat := platform.HostPlatform()
-
-	var mu sync.Mutex
-	var entries []*image.Metadata
-	var failed []string
-
-	var g errgroup.Group
-	g.SetLimit(8)
-
-	for _, ref := range refs {
-		g.Go(func() error {
-			img, err := cli.Load(ref, plat)
-			if err != nil {
-				mu.Lock()
-				failed = append(failed, ref)
-				mu.Unlock()
-				return nil
-			}
-
-			m, err := image.Extract(ref, img)
-			if err != nil {
-				mu.Lock()
-				failed = append(failed, ref)
-				mu.Unlock()
-				return nil
-			}
-
-			mu.Lock()
-			entries = append(entries, m)
-			mu.Unlock()
-			return nil
-		})
-	}
-
-	if err := g.Wait(); err != nil {
-		return nil, nil, err
-	}
-
-	// Retry failed refs sequentially. Docker Desktop can transiently reject
-	// concurrent ImageSave streams; by the time the first wave finishes the
-	// daemon has settled and individual retries almost always succeed.
-	warnings := []string{}
-	for _, ref := range failed {
-		img, err := cli.Load(ref, plat)
-		if err != nil {
-			warnings = append(warnings, fmt.Sprintf("skipping %s: %v", ref, err))
-			continue
-		}
-		m, err := image.Extract(ref, img)
-		if err != nil {
-			warnings = append(warnings, fmt.Sprintf("skipping %s: %v", ref, err))
-			continue
-		}
-		entries = append(entries, m)
-	}
-
-	return entries, warnings, nil
 }
 
 func buildGraph(entries []*image.Metadata) *result.GraphResult {

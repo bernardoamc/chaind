@@ -94,6 +94,22 @@ type GraphResult struct {
 	Warnings      []string    `json:"warnings"`
 }
 
+// AncestorGroup is a set of images that share a common implied ancestor,
+// identified by the deepest ChainID they all hold in common.
+type AncestorGroup struct {
+	CommonChainID string   `json:"common_chain_id"`
+	CommonDepth   int      `json:"common_depth"`
+	Images        []string `json:"images"`
+}
+
+// AncestorsResult is the full result of an implied ancestry analysis.
+type AncestorsResult struct {
+	SchemaVersion int             `json:"schema_version"`
+	Groups        []AncestorGroup `json:"groups"`
+	Ungrouped     []string        `json:"ungrouped"`
+	Warnings      []string        `json:"warnings"`
+}
+
 // CompareResult is the full result of comparing two images.
 //
 // Images is always populated with the full metadata for both inputs, keyed by

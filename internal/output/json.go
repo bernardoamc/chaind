@@ -28,6 +28,16 @@ func (r *JSONRenderer) RenderGraph(res *result.GraphResult) error {
 	return err
 }
 
+// RenderAncestors writes an AncestorsResult as JSON to the writer.
+func (r *JSONRenderer) RenderAncestors(res *result.AncestorsResult) error {
+	data, err := json.MarshalIndent(res, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal ancestors result to JSON: %w", err)
+	}
+	_, err = fmt.Fprintf(r.w, "%s\n", data)
+	return err
+}
+
 // Render writes a CompareResult as JSON to the writer.
 func (r *JSONRenderer) Render(res *result.CompareResult) error {
 	data, err := json.MarshalIndent(res, "", "  ")

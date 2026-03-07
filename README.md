@@ -36,6 +36,7 @@ chaind [command]
 Commands:
   compare   Determine the base image relationship between two images
   graph     Map base image relationships across all local images
+  ancestors Group images by implied shared ancestry using ChainIDs
 
 Global flags:
   --socket string   Docker socket path (overrides DOCKER_HOST; default: /var/run/docker.sock)
@@ -54,7 +55,14 @@ Flags:
 chaind graph
 ```
 
-Both commands output JSON.
+```
+chaind ancestors [flags]
+
+Flags:
+  --min-depth int   Minimum number of shared layers required to form a group (0 = no minimum) (default 0)
+```
+
+All commands output JSON.
 
 ## Examples
 
@@ -150,6 +158,43 @@ The `warnings` field is always present (empty array when there are none). Each e
 
 When a base image has multiple derived images, each derivation appears as a separate chain with the shared root repeated. Images with no detected relationship to any other local image appear in `unrelated`.
 
+### ancestors
+
+Scans all images in the local Docker daemon and groups them by implied shared ancestry, using [ChainIDs](docs/CHAIN_ID.md) to identify common layer sequences even when the ancestor image is not available locally. Images with a single layer (bare base images such as `alpine`) are excluded from grouping but appear in `ungrouped`.
+
+```bash
+chaind ancestors | jq .
+
+# Only surface groups that share at least 3 layers
+chaind ancestors --min-depth 3
+```
+
+Output:
+
+```json
+{
+  "schema_version": 1,
+  "groups": [
+    {
+      "common_chain_id": "sha256:...",
+      "common_depth": 3,
+      "images": ["base:latest", "derived:latest"]
+    },
+    {
+      "common_chain_id": "sha256:...",
+      "common_depth": 1,
+      "images": ["app:latest", "base:latest", "derived:latest"]
+    }
+  ],
+  "ungrouped": ["alpine:3.21", "postgres:16"],
+  "warnings": []
+}
+```
+
+Each group reports the deepest `common_chain_id` shared by all its members and a `common_depth` indicating how many layers that represents. An image may appear in more than one group: a tighter group with a closer relative and a broader group with a more distant shared ancestor. Groups are sorted deepest-first.
+
+The `warnings` field follows the same convention as `graph`: it is always present and lists any images that could not be loaded.
+
 ## Exit codes (`compare` only)
 
 | Code | Meaning |
@@ -189,18 +234,21 @@ chaind/
 ├── cmd/
 │   ├── root.go             # Cobra dispatcher, global flags, exit code handling
 │   ├── compare.go          # chaind compare subcommand
-│   └── graph.go            # chaind graph subcommand
+│   ├── graph.go            # chaind graph subcommand
+│   └── ancestors.go        # chaind ancestors subcommand
 └── internal/
     ├── result/
-    │   └── result.go       # Shared types: Verdict, CompareResult, GraphResult
+    │   └── result.go       # Shared types: Verdict, CompareResult, GraphResult, AncestorsResult
     ├── platform/
     │   └── platform.go     # Host platform detection, --platform parsing
     ├── image/
-    │   └── loader.go       # Load images from Docker daemon, list local refs
+    │   └── loader.go       # Load images from Docker daemon, concurrent LoadAll, list refs
     ├── compare/
     │   └── compare.go      # DiffID prefix algorithm
     ├── graph/
-    │   └── graph.go        # Graph building: concurrent loading, chain detection
+    │   └── graph.go        # Chain detection across known local relationships
+    ├── ancestors/
+    │   └── ancestors.go    # ChainID computation, implied ancestry grouping
     └── output/
         └── json.go         # JSON renderer
 ```
@@ -210,4 +258,4 @@ chaind/
 - [`github.com/google/go-containerregistry`](https://github.com/google/go-containerregistry) image loading from Docker daemon, OCI types
 - [`github.com/docker/docker`](https://github.com/moby/moby)  listing local images via Docker client
 - [`github.com/spf13/cobra`](https://github.com/spf13/cobra)  CLI framework
-- [`golang.org/x/sync`](https://pkg.go.dev/golang.org/x/sync) concurrent image loading in `graph`
+- [`golang.org/x/sync`](https://pkg.go.dev/golang.org/x/sync) concurrent image loading in `image.LoadAll`

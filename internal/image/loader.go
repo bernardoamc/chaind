@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
+
+	"golang.org/x/sync/errgroup"
 
 	dockerimage "github.com/docker/docker/api/types/image"
 	dockerclient "github.com/docker/docker/client"
@@ -11,6 +14,8 @@ import (
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/daemon"
 	"github.com/google/go-containerregistry/pkg/v1/types"
+
+	"github.com/bernardoamc/chaind/internal/platform"
 )
 
 // Client wraps the Docker daemon connection and exposes domain-level image
@@ -29,6 +34,7 @@ func NewClient() (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create docker client: %w", err)
 	}
+
 	return &Client{cli: cli, opt: daemon.WithClient(cli)}, nil
 }
 
@@ -52,6 +58,7 @@ func (c *Client) ListRefs(ctx context.Context) ([]string, error) {
 			}
 		}
 	}
+
 	return refs, nil
 }
 
@@ -121,6 +128,70 @@ func Extract(ref string, img v1.Image) (*Metadata, error) {
 	}, nil
 }
 
+// LoadAll loads all referenced images concurrently from the daemon, retrying
+// any that fail in the first pass. It returns the successfully loaded entries
+// and a warnings slice for images that could not be loaded after retrying.
+//
+// Retry logic exists because Docker Desktop can transiently reject concurrent
+// ImageSave streams; by the time the first wave finishes the daemon has
+// settled and individual retries almost always succeed.
+func (c *Client) LoadAll(ctx context.Context, refs []string) ([]*Metadata, []string, error) {
+	plat := platform.HostPlatform()
+
+	var mu sync.Mutex
+	var entries []*Metadata
+	var failed []string
+
+	var g errgroup.Group
+	g.SetLimit(8)
+
+	for _, ref := range refs {
+		g.Go(func() error {
+			img, err := c.Load(ref, plat)
+			if err != nil {
+				mu.Lock()
+				failed = append(failed, ref)
+				mu.Unlock()
+				return nil
+			}
+
+			m, err := Extract(ref, img)
+			if err != nil {
+				mu.Lock()
+				failed = append(failed, ref)
+				mu.Unlock()
+				return nil
+			}
+
+			mu.Lock()
+			entries = append(entries, m)
+			mu.Unlock()
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return nil, nil, err
+	}
+
+	warnings := []string{}
+	for _, ref := range failed {
+		img, err := c.Load(ref, plat)
+		if err != nil {
+			warnings = append(warnings, fmt.Sprintf("skipping %s: %v", ref, err))
+			continue
+		}
+		m, err := Extract(ref, img)
+		if err != nil {
+			warnings = append(warnings, fmt.Sprintf("skipping %s: %v", ref, err))
+			continue
+		}
+		entries = append(entries, m)
+	}
+
+	return entries, warnings, nil
+}
+
 // resolveIndex resolves a manifest list to a single-platform image.
 func resolveIndex(r name.Reference, img v1.Image, targetPlatform *v1.Platform, opt daemon.Option) (v1.Image, error) {
 	raw, err := img.RawManifest()
@@ -149,6 +220,7 @@ func resolveIndex(r name.Reference, img v1.Image, targetPlatform *v1.Platform, o
 	if targetPlatform.Variant != "" {
 		plat += "/" + targetPlatform.Variant
 	}
+
 	return nil, fmt.Errorf("no manifest found for platform %s in index", plat)
 }
 
@@ -157,11 +229,14 @@ func PlatformSatisfies(candidate, target *v1.Platform) bool {
 	if candidate.OS != target.OS {
 		return false
 	}
+
 	if candidate.Architecture != target.Architecture {
 		return false
 	}
+
 	if target.Variant != "" && candidate.Variant != target.Variant {
 		return false
 	}
+
 	return true
 }
