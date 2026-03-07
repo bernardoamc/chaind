@@ -3,6 +3,8 @@ package graph
 import (
 	"cmp"
 	"context"
+	"fmt"
+	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -45,12 +47,13 @@ func loadEntries(ctx context.Context, refs []string) ([]*image.Metadata, error) 
 		g.Go(func() error {
 			img, err := image.Load(ref, plat)
 			if err != nil {
-				// skip unloadable images
+				fmt.Fprintf(os.Stderr, "warning: skipping %s: %v\n", ref, err)
 				return nil
 			}
 
 			m, err := image.Extract(ref, img)
 			if err != nil {
+				fmt.Fprintf(os.Stderr, "warning: skipping %s: %v\n", ref, err)
 				return nil
 			}
 
