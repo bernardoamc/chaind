@@ -47,12 +47,14 @@ func runCompare(cmd *cobra.Command, args []string) error {
 	}
 	defer cli.Close()
 
-	imgA, err := cli.Load(args[0], plat)
+	ctx := cmd.Context()
+
+	imgA, err := cli.Load(ctx, args[0], plat)
 	if err != nil {
 		return fmt.Errorf("load image %s: %w", args[0], err)
 	}
 
-	imgB, err := cli.Load(args[1], plat)
+	imgB, err := cli.Load(ctx, args[1], plat)
 	if err != nil {
 		return fmt.Errorf("load image %s: %w", args[1], err)
 	}

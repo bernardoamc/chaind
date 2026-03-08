@@ -157,6 +157,7 @@ func toNode(m *image.Metadata, parentRef *string) result.GraphNode {
 		Reference:       m.Ref,
 		Digest:          m.Digest.String(),
 		LayerCount:      len(m.DiffIDs),
+		Platform:        m.Platform,
 		ParentReference: parentRef,
 	}
 }

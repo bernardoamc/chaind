@@ -144,6 +144,30 @@ func TestBuildGraphBranching(t *testing.T) {
 	}
 }
 
+func TestBuildGraphPlatformPropagated(t *testing.T) {
+	// Platform from Metadata must appear on every GraphNode — both chain nodes
+	// and unrelated nodes — regardless of position in the chain.
+	entries := []*image.Metadata{
+		{Ref: "base", Digest: h("base"), DiffIDs: []v1.Hash{h("L1")}, Platform: "linux/amd64"},
+		{Ref: "derived", Digest: h("derived"), DiffIDs: []v1.Hash{h("L1"), h("L2")}, Platform: "linux/amd64"},
+		{Ref: "unrelated", Digest: h("unrelated"), DiffIDs: []v1.Hash{h("L9")}, Platform: "linux/arm64"},
+	}
+	res := buildGraph(entries)
+
+	for _, chain := range res.Chains {
+		for _, node := range chain.Nodes {
+			if node.Platform != "linux/amd64" {
+				t.Errorf("chain node %s: want platform linux/amd64, got %q", node.Reference, node.Platform)
+			}
+		}
+	}
+	for _, node := range res.Unrelated {
+		if node.Platform != "linux/arm64" {
+			t.Errorf("unrelated node %s: want platform linux/arm64, got %q", node.Reference, node.Platform)
+		}
+	}
+}
+
 func TestBuildGraphMixed(t *testing.T) {
 	// A → B, C is unrelated.
 	entries := []*image.Metadata{

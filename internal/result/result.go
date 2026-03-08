@@ -78,6 +78,7 @@ type GraphNode struct {
 	Reference       string  `json:"reference"`
 	Digest          string  `json:"digest"`
 	LayerCount      int     `json:"layer_count"`
+	Platform        string  `json:"platform"`
 	ParentReference *string `json:"parent"`
 }
 

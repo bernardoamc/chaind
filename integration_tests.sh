@@ -82,11 +82,10 @@ assert "SAME_IMAGE: derived is null" "$out" '.derived == null'
 echo
 
 graph=$($CHAIND graph)
-# Expected chains among test images:
-#   chain 1: alpine:3.21 → chaind-test:latest
-#   chain 2: alpine:3.21 → chaind-base:latest → chaind-derived:latest
-# alpine:3.20 must appear in unrelated (other daemon images may also be present)
-assert "GRAPH: chain count is 2" "$graph" '.chains | length == 2'
+# The daemon may contain images beyond the test set, so we assert on specific
+# relationships rather than exact counts.
+#   expected: alpine:3.21 → chaind-test:latest
+#   expected: alpine:3.21 → chaind-base:latest → chaind-derived:latest
 assert "GRAPH: alpine:3.21 is a chain root" "$graph" '[.chains[].nodes[0].reference] | any(. == "alpine:3.21")'
 assert "GRAPH: chaind-test:latest is a chain leaf" "$graph" '[.chains[].nodes[-1].reference] | any(. == "chaind-test:latest")'
 assert "GRAPH: chaind-derived:latest is a chain leaf" "$graph" '[.chains[].nodes[-1].reference] | any(. == "chaind-derived:latest")'

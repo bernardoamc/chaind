@@ -133,26 +133,28 @@ Output:
   "chains": [
     {
       "nodes": [
-        { "reference": "alpine:3.21", "digest": "sha256:...", "layer_count": 1, "parent": null },
-        { "reference": "myapp:latest", "digest": "sha256:...", "layer_count": 3, "parent": "alpine:3.21" }
+        { "reference": "alpine:3.21", "digest": "sha256:...", "layer_count": 1, "platform": "linux/amd64", "parent": null },
+        { "reference": "myapp:latest", "digest": "sha256:...", "layer_count": 3, "platform": "linux/amd64", "parent": "alpine:3.21" }
       ]
     },
     {
       "nodes": [
-        { "reference": "alpine:3.21",    "digest": "sha256:...", "layer_count": 1, "parent": null },
-        { "reference": "base:latest",    "digest": "sha256:...", "layer_count": 3, "parent": "alpine:3.21" },
-        { "reference": "derived:latest", "digest": "sha256:...", "layer_count": 4, "parent": "base:latest" }
+        { "reference": "alpine:3.21",    "digest": "sha256:...", "layer_count": 1, "platform": "linux/amd64", "parent": null },
+        { "reference": "base:latest",    "digest": "sha256:...", "layer_count": 3, "platform": "linux/amd64", "parent": "alpine:3.21" },
+        { "reference": "derived:latest", "digest": "sha256:...", "layer_count": 4, "platform": "linux/amd64", "parent": "base:latest" }
       ]
     }
   ],
   "unrelated": [
-    { "reference": "postgres:16", "digest": "sha256:...", "layer_count": 8 }
+    { "reference": "postgres:16", "digest": "sha256:...", "layer_count": 8, "platform": "linux/amd64" }
   ],
   "warnings": [
     "skipping scratch:latest: get media type: unsupported media type"
   ]
 }
 ```
+
+The `platform` field on each node is read from the image's own config metadata, not from the host. It reflects the actual platform the image was built for (`linux/amd64`, `linux/arm64/v8`, etc.). When images that should be related appear in `unrelated` instead, mismatched `platform` values between a base and its derived image are the most common cause.
 
 The `warnings` field is always present (empty array when there are none). Each entry describes an image that was skipped during loading (e.g. unsupported media type, missing platform) and therefore excluded from the graph.
 

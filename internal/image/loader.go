@@ -63,8 +63,11 @@ func (c *Client) ListRefs(ctx context.Context) ([]string, error) {
 }
 
 // Load loads a single-platform image from the Docker daemon.
-// If the image is a manifest list, it resolves the descriptor matching targetPlatform.
-func (c *Client) Load(ref string, targetPlatform *v1.Platform) (v1.Image, error) {
+// If the image is a manifest list and targetPlatform is nil, the platform is
+// detected from the daemon via ImageInspect so that the locally stored variant
+// is returned rather than a host-platform assumption. Pass an explicit
+// targetPlatform to override this behaviour (e.g. from a --platform flag).
+func (c *Client) Load(ctx context.Context, ref string, targetPlatform *v1.Platform) (v1.Image, error) {
 	r, err := name.ParseReference(ref)
 	if err != nil {
 		return nil, fmt.Errorf("parse reference %q: %w", ref, err)
@@ -82,6 +85,12 @@ func (c *Client) Load(ref string, targetPlatform *v1.Platform) (v1.Image, error)
 
 	switch mt {
 	case types.OCIImageIndex, types.DockerManifestList:
+		if targetPlatform == nil {
+			targetPlatform, err = c.inspectPlatform(ctx, ref)
+			if err != nil {
+				return nil, err
+			}
+		}
 		return resolveIndex(r, img, targetPlatform, c.opt)
 	default:
 		return img, nil
@@ -94,6 +103,7 @@ type Metadata struct {
 	Digest    v1.Hash
 	DiffIDs   []v1.Hash
 	MediaType string
+	Platform  string
 	Manifest  *v1.Manifest
 }
 
@@ -124,7 +134,12 @@ func Extract(ref string, img v1.Image) (*Metadata, error) {
 		Digest:    digest,
 		DiffIDs:   config.RootFS.DiffIDs,
 		MediaType: string(mt),
-		Manifest:  manifest,
+		Platform: platform.String(&v1.Platform{
+			OS:           config.OS,
+			Architecture: config.Architecture,
+			Variant:      config.Variant,
+		}),
+		Manifest: manifest,
 	}, nil
 }
 
@@ -136,18 +151,17 @@ func Extract(ref string, img v1.Image) (*Metadata, error) {
 // ImageSave streams; by the time the first wave finishes the daemon has
 // settled and individual retries almost always succeed.
 func (c *Client) LoadAll(ctx context.Context, refs []string) ([]*Metadata, []string, error) {
-	plat := platform.HostPlatform()
-
 	var mu sync.Mutex
 	var entries []*Metadata
 	var failed []string
+	warnings := []string{}
 
 	var g errgroup.Group
 	g.SetLimit(8)
 
 	for _, ref := range refs {
 		g.Go(func() error {
-			img, err := c.Load(ref, plat)
+			img, err := c.Load(ctx, ref, nil)
 			if err != nil {
 				mu.Lock()
 				failed = append(failed, ref)
@@ -174,9 +188,8 @@ func (c *Client) LoadAll(ctx context.Context, refs []string) ([]*Metadata, []str
 		return nil, nil, err
 	}
 
-	warnings := []string{}
 	for _, ref := range failed {
-		img, err := c.Load(ref, plat)
+		img, err := c.Load(ctx, ref, nil)
 		if err != nil {
 			warnings = append(warnings, fmt.Sprintf("skipping %s: %v", ref, err))
 			continue
@@ -190,6 +203,21 @@ func (c *Client) LoadAll(ctx context.Context, refs []string) ([]*Metadata, []str
 	}
 
 	return entries, warnings, nil
+}
+
+// inspectPlatform returns the platform of the image stored locally for the
+// given ref by querying the daemon. For manifest list tags, this reflects
+// whichever platform variant was stored when the image was last pulled.
+func (c *Client) inspectPlatform(ctx context.Context, ref string) (*v1.Platform, error) {
+	info, _, err := c.cli.ImageInspectWithRaw(ctx, ref)
+	if err != nil {
+		return nil, fmt.Errorf("inspect platform: %w", err)
+	}
+	return &v1.Platform{
+		OS:           info.Os,
+		Architecture: info.Architecture,
+		Variant:      info.Variant,
+	}, nil
 }
 
 // resolveIndex resolves a manifest list to a single-platform image.
